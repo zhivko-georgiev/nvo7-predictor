@@ -1,0 +1,42 @@
+# NVO Rankings Prediction Configuration
+
+data:
+  historical_years: [2022, 2023, 2024]
+  predict_year: 2025
+  files_dir: "files"
+  output_dir: "output"
+
+model:
+  # Optimized hyperparameters (63% improvement over baseline)
+  n_estimators: 500
+  max_depth: 8
+  learning_rate: 0.03
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_alpha: 0.2
+  reg_lambda: 1.5
+  min_child_weight: 5
+  gamma: 0.2
+  test_size: 0.2
+  random_state: 42
+
+filters:
+  gender: "female"  # Options: male, female, null (for all)
+  schools: []       # Empty list = all schools, or list of school names
+
+scenarios:
+  better: 0.80      # Percentage shift for better exam scenario
+  worse: 0.80       # Percentage shift for worse exam scenario
+
+output:
+  format: "xlsx"
+  include_confidence: true
+  include_intervals: true  # NEW: Show prediction ranges
+  sort_by: "R1_prediction"
+  prefix: "Predictions"
+
+logging:
+  level: "INFO"     # DEBUG, INFO, WARNING, ERROR
+  console: true
+  file: true
+  file_path: "logs/nvo.log"
