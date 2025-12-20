@@ -29,6 +29,8 @@ setup(
         "PyYAML>=6.0,<7.0",
         "click>=8.1.0,<9.0.0",
         "tqdm>=4.65.0,<5.0.0",
+        "streamlit>=1.28.0,<2.0.0",
+        "plotly>=5.18.0,<6.0.0",
     ],
     entry_points={
         "console_scripts": [

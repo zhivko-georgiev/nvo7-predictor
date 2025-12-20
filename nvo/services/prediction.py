@@ -6,12 +6,37 @@ from typing import Dict, List, Optional, Tuple
 from nvo.data.processors import build_dataset
 from nvo.data.exam_loaders import load_exam_distribution
 from nvo.models.trainer import train_model
+from nvo.models.persistence import save_model, load_model, is_model_valid
 from nvo.models.prediction_utils import (
     prepare_prediction_data,
     generate_predictions,
     compute_prediction_intervals,
 )
 from nvo.services.common import get_gender_list
+from nvo.utils.logger import get_logger
+
+logger = get_logger("services.prediction")
+
+
+def _get_or_train_model(df_hist, target_col, round_num, model_params, gender, historical_years, use_cache=True):
+    """Get cached model or train new one."""
+    if use_cache and is_model_valid(gender, round_num, historical_years):
+        bundle = load_model(gender, round_num)
+        if bundle and bundle['model'] is not None:
+            logger.info(f"Using cached model for R{round_num} {gender}")
+            return (bundle['model'], bundle['le_school'], bundle['le_profile'], 
+                    bundle['feature_cols'], bundle['school_stats'])
+    
+    logger.info(f"Training model for R{round_num} {gender}...")
+    model, le_school, le_profile, feature_cols, school_stats = train_model(
+        df_hist, target_col, round_num, model_params
+    )
+    
+    if model is not None and use_cache:
+        save_model(model, le_school, le_profile, feature_cols, school_stats,
+                   gender, round_num, historical_years)
+    
+    return model, le_school, le_profile, feature_cols, school_stats
 
 
 def run_predictions(
@@ -20,7 +45,8 @@ def run_predictions(
     files_dir: str,
     model_params: dict,
     gender_filter: Optional[str] = None,
-    school_filter: Optional[List[str]] = None
+    school_filter: Optional[List[str]] = None,
+    use_cache: bool = True
 ) -> Tuple[Dict, Dict]:
     """Run predictions for all rounds and genders.
     
@@ -53,8 +79,8 @@ def run_predictions(
             if target_col not in df_hist.columns:
                 continue
             
-            model, le_school, le_profile, feature_cols, school_stats = train_model(
-                df_hist, target_col, round_num, model_params
+            model, le_school, le_profile, feature_cols, school_stats = _get_or_train_model(
+                df_hist, target_col, round_num, model_params, g, historical_years, use_cache
             )
             
             if model is None:
@@ -69,7 +95,7 @@ def run_predictions(
             
             results = generate_predictions(
                 model, X, df_prep, prev_scores_map, school_stats,
-                pd.Series([True] * len(X), index=X.index)
+                pd.Series([True] * len(X), index=X.index), gender=g
             )
             
             for r in results:
@@ -77,16 +103,13 @@ def run_predictions(
                 if key not in all_results:
                     all_results[key] = {'School': r.school, 'Profile': r.profile}
                 
-                lower, upper, confidence = compute_prediction_intervals(
+                _, _, confidence = compute_prediction_intervals(
                     r.predicted, r.volatility, avg_volatility
                 )
                 
                 all_results[key][f'R{round_num}_{g}_Predicted'] = round(r.predicted, 2)
-                all_results[key][f'R{round_num}_{g}_Lower'] = round(lower, 2)
-                all_results[key][f'R{round_num}_{g}_Upper'] = round(upper, 2)
                 all_results[key][f'R{round_num}_{g}_Confidence'] = round(confidence, 1)
                 all_results[key][f'R{round_num}_{g}_Volatility'] = round(r.volatility, 1)
-                all_results[key][f'R{round_num}_{g}_Years_Data'] = r.n_years
                 all_results[key][f'R{round_num}_{g}_Reliable'] = r.reliable
             
             reliable_count = sum(1 for r in results if r.reliable)

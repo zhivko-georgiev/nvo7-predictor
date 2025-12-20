@@ -37,8 +37,9 @@ def cli(ctx, config, verbose):
 @click.option('--year', type=int, help='Year to predict')
 @click.option('--gender', type=click.Choice(['male', 'female', 'all']), help='Gender filter')
 @click.option('--schools', help='Comma-separated school names to filter')
+@click.option('--no-cache', is_flag=True, help='Force retraining (ignore cached models)')
 @click.pass_context
-def predict(ctx, year, gender, schools):
+def predict(ctx, year, gender, schools, no_cache):
     """Generate predictions with confidence intervals."""
     cfg = ctx.obj['config']
     
@@ -53,7 +54,7 @@ def predict(ctx, year, gender, schools):
     
     results, metrics = run_predictions(
         cfg.data['historical_years'], predict_year, cfg.data['files_dir'],
-        cfg.model, gender_filter, school_filter or None
+        cfg.model, gender_filter, school_filter or None, use_cache=not no_cache
     )
     
     if not results:

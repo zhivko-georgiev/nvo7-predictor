@@ -12,6 +12,13 @@ logger = get_logger("models.prediction_utils")
 RELIABILITY_MIN_YEARS = 2
 RELIABILITY_MAX_VOLATILITY = 25
 
+# Gender-specific blend weights (model vs naive)
+BLEND_WEIGHTS = {
+    'Female': 0.6,  # 60% model, 40% naive
+    'Male': 0.0,    # 0% model, 100% naive (model doesn't help for male)
+    'Total': 0.4,   # 40% model, 60% naive
+}
+
 
 @dataclass
 class PredictionResult:
@@ -95,7 +102,8 @@ def generate_predictions(
     df_prep: pd.DataFrame,
     prev_scores_map: Dict,
     school_stats: Dict,
-    mask: pd.Series
+    mask: pd.Series,
+    gender: str = 'Female'
 ) -> List[PredictionResult]:
     """Generate predictions with metadata for each school-profile."""
     X_valid = X[mask]
@@ -104,10 +112,17 @@ def generate_predictions(
     if len(X_valid) == 0:
         return []
     
+    # Get blend weight for this gender
+    blend_weight = BLEND_WEIGHTS.get(gender, 0.4)
+    
     # Get base scores and predict changes
     prev_scores = X_valid['Prev_Year_Score'].values
     predicted_changes = model.predict(X_valid)
-    predictions = np.clip(prev_scores + predicted_changes, 0, 500)  # Cap at 0-500
+    
+    # Apply blending: blend_weight * model_pred + (1 - blend_weight) * naive
+    model_predictions = prev_scores + predicted_changes
+    predictions = blend_weight * model_predictions + (1 - blend_weight) * prev_scores
+    predictions = np.clip(predictions, 0, 500)  # Cap at 0-500
     
     results = []
     for idx, (_, row) in enumerate(df_valid.iterrows()):

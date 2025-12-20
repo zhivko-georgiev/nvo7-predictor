@@ -23,6 +23,9 @@ Thumbs.db
 output/*.xlsx
 output/*.csv
 
+# Cached models (root level, not nvo/models/)
+/models/
+
 # Logs
 logs/*.log
 *.log
@@ -36,6 +39,8 @@ logs/*.log
 .idea/
 *.swp
 *.swo
+
+# Kiro specs (internal)
 .kiro/
 
 # Testing
@@ -50,3 +55,6 @@ htmlcov/
 # Environment
 .env
 .env.local
+
+# Streamlit
+.streamlit/

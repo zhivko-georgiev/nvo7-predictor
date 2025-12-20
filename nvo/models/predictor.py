@@ -1,10 +1,11 @@
-"""Prediction with gender-specific blending."""
+"""Prediction with gender-specific blending and model caching."""
 import pandas as pd
 import numpy as np
 from typing import Dict, List
 from nvo.data.processors import build_dataset
 from nvo.data.exam_loaders import load_exam_distribution
 from nvo.models.trainer import train_model, prepare_features
+from nvo.models.persistence import save_model, load_model, is_model_valid
 from nvo.utils.logger import get_logger
 
 logger = get_logger("models.predictor")
@@ -17,13 +18,35 @@ BLEND_WEIGHTS = {
 }
 
 
+def _get_or_train_model(df_hist, target_col, round_num, model_params, gender, historical_years, use_cache=True):
+    """Get cached model or train new one."""
+    if use_cache and is_model_valid(gender, round_num, historical_years):
+        bundle = load_model(gender, round_num)
+        if bundle and bundle['model'] is not None:
+            logger.info(f"Using cached model for R{round_num} {gender}")
+            return (bundle['model'], bundle['le_school'], bundle['le_profile'], 
+                    bundle['feature_cols'], bundle['school_stats'])
+    
+    logger.info(f"Training model for R{round_num} {gender}...")
+    model, le_school, le_profile, feature_cols, school_stats = train_model(
+        df_hist, target_col, round_num, model_params
+    )
+    
+    if model is not None and use_cache:
+        save_model(model, le_school, le_profile, feature_cols, school_stats,
+                   gender, round_num, historical_years)
+    
+    return model, le_school, le_profile, feature_cols, school_stats
+
+
 def predict_with_intervals(
     historical_years: List[int],
     predict_year: int,
     files_dir: str,
     model_params: dict,
     gender_filter: str = None,
-    school_filter: List[str] = None
+    school_filter: List[str] = None,
+    use_cache: bool = True
 ) -> pd.DataFrame:
     """Generate predictions for R1 and R2."""
     
@@ -63,10 +86,8 @@ def predict_with_intervals(
         if target_col not in df_hist.columns:
             continue
         
-        logger.info(f"Training model for R1 {gender} (blend={model_weight})...")
-        
-        model, le_school, le_profile, feature_cols, school_stats = train_model(
-            df_hist, target_col, 1, model_params
+        model, le_school, le_profile, feature_cols, school_stats = _get_or_train_model(
+            df_hist, target_col, 1, model_params, gender, historical_years, use_cache
         )
         
         if model is None:
@@ -85,6 +106,7 @@ def predict_with_intervals(
             df_pred.loc[df_pred.index[idx], 'School_Mean'] = stats.get('mean', df_pred.iloc[idx]['Prev_Year_Score'])
             df_pred.loc[df_pred.index[idx], 'School_Volatility'] = stats.get('volatility', avg_volatility)
             df_pred.loc[df_pred.index[idx], 'School_Trend'] = stats.get('trend', 0)
+            df_pred.loc[df_pred.index[idx], 'School_Acceleration'] = stats.get('acceleration', 0)
         
         df_pred['Dist_From_Mean'] = df_pred['Prev_Year_Score'] - df_pred['School_Mean']
         

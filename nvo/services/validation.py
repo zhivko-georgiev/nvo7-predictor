@@ -65,7 +65,7 @@ def run_validation(
             valid_mask = y_test > 0
             
             pred_results = generate_predictions(
-                model, X, df_prep, prev_scores_map, school_stats, valid_mask
+                model, X, df_prep, prev_scores_map, school_stats, valid_mask, gender=g
             )
             
             if not pred_results:
