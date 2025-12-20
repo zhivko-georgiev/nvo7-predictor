@@ -54,6 +54,9 @@ nvo validate --test-year 2025 --gender female
 
 # Predict for specific schools
 nvo predict --year 2026 --gender female --schools "119,35,18"
+
+# Analyze historical data for specific schools
+nvo analyze --years 2023,2024,2025 --gender female --schools "СМГ,НПМГ"
 ```
 
 ### Output Example
