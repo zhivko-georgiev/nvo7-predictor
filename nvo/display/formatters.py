@@ -85,18 +85,17 @@ def format_trends(trends: Dict, target: str) -> List[str]:
     current_school = None
     
     for (school, profile), data in sorted(trends.items()):
-        has_data = len(data['R1']) >= 2 or len(data['R2']) >= 2
+        has_data = len(data['R1']) >= 2 or len(data['R2']) >= 2 or len(data.get('R3', [])) >= 2
         if not has_data:
             continue
         if school != current_school:
             lines.append(f"\n  {school}")
             current_school = school
         lines.append(f"    {profile[:50]}")
-        if len(data['R1']) >= 2:
-            lines.append(f"      R1: {format_trend(data['R1'])}")
-        if len(data['R2']) >= 2:
-            lines.append(f"      R2: {format_trend(data['R2'])}")
-        # Calculate R1->R2 drop
+        for rnd in ['R1', 'R2', 'R3']:
+            if len(data.get(rnd, [])) >= 2:
+                lines.append(f"      {rnd}: {format_trend(data[rnd])}")
+        # Calculate round drops
         if len(data['R1']) >= 1 and len(data['R2']) >= 1:
             r1_by_year = {y: s for y, s in data['R1']}
             drops = []
@@ -106,5 +105,23 @@ def format_trends(trends: Dict, target: str) -> List[str]:
                     drops.append(f"{y}:{drop:+.0f}")
             if drops:
                 lines.append(f"      R1→R2: {', '.join(drops)}")
+        if len(data['R2']) >= 1 and len(data.get('R3', [])) >= 1:
+            r2_by_year = {y: s for y, s in data['R2']}
+            drops = []
+            for y, r3_score in data.get('R3', []):
+                if y in r2_by_year:
+                    drop = r3_score - r2_by_year[y]
+                    drops.append(f"{y}:{drop:+.0f}")
+            if drops:
+                lines.append(f"      R2→R3: {', '.join(drops)}")
+        if len(data['R1']) >= 1 and len(data.get('R3', [])) >= 1:
+            r1_by_year = {y: s for y, s in data['R1']}
+            drops = []
+            for y, r3_score in data.get('R3', []):
+                if y in r1_by_year:
+                    drop = r3_score - r1_by_year[y]
+                    drops.append(f"{y}:{drop:+.0f}")
+            if drops:
+                lines.append(f"      R1→R3: {', '.join(drops)}")
     
     return lines

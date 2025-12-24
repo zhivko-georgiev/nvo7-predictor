@@ -37,7 +37,7 @@ def run_analysis(
             'rounds': {}
         }
         
-        for round_num in [1, 2]:
+        for round_num in [1, 2, 3]:
             col = f'R{round_num}_Min_{target}'
             if col not in df.columns:
                 continue
@@ -65,9 +65,10 @@ def run_analysis(
     for (school, profile), scores in all_data.items():
         r1_scores = sorted([(y, s) for (y, r), s in scores.items() if r == 1])
         r2_scores = sorted([(y, s) for (y, r), s in scores.items() if r == 2])
+        r3_scores = sorted([(y, s) for (y, r), s in scores.items() if r == 3])
         
-        if len(r1_scores) >= 2 or len(r2_scores) >= 2:
-            trends[(school, profile)] = {'R1': r1_scores, 'R2': r2_scores}
+        if len(r1_scores) >= 2 or len(r2_scores) >= 2 or len(r3_scores) >= 2:
+            trends[(school, profile)] = {'R1': r1_scores, 'R2': r2_scores, 'R3': r3_scores}
     
     return yearly_stats, trends
 

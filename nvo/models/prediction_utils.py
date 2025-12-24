@@ -10,7 +10,7 @@ from nvo.utils.logger import get_logger
 logger = get_logger("models.prediction_utils")
 
 RELIABILITY_MIN_YEARS = 2
-RELIABILITY_MAX_VOLATILITY = 25
+RELIABILITY_MAX_VOLATILITY = 20
 
 # Gender-specific blend weights (model vs naive)
 BLEND_WEIGHTS = {

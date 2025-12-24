@@ -70,21 +70,31 @@ def load_school_capacity(year: int, files_dir: str = "files") -> pd.DataFrame:
     
     try:
         df = pd.read_excel(filepath, header=None)
-        df.columns = df.iloc[1]
-        df = df.iloc[3:].reset_index(drop=True)
+        # Find header row containing 'Училище - име'
+        header_row = None
+        for i in range(min(10, len(df))):
+            if 'Училище - име' in df.iloc[i].values:
+                header_row = i
+                break
+        
+        if header_row is None:
+            return pd.DataFrame()
+        
+        df.columns = df.iloc[header_row]
+        df = df.iloc[header_row + 2:].reset_index(drop=True)  # Skip header and empty row
         
         capacity_df = pd.DataFrame({
             'School': df['Училище - име'],
             'Profile': df['Паралелка - име'],
-            'Capacity_Total': df['Общо основание'].apply(parse_bg_float),
-            'Capacity_Male': df['Мъже'].apply(parse_bg_float),
-            'Capacity_Female': df['Жени'].apply(parse_bg_float)
+            'Capacity_Total': df['Общо основание'].apply(parse_bg_float) if 'Общо основание' in df.columns else 0,
+            'Capacity_Male': df['Мъже'].apply(parse_bg_float) if 'Мъже' in df.columns else 0,
+            'Capacity_Female': df['Жени'].apply(parse_bg_float) if 'Жени' in df.columns else 0
         })
         
         logger.info(f"Loaded capacity data for {year}: {len(capacity_df)} entries")
         return capacity_df
     except Exception as e:
-        logger.warning(f"Could not load capacity for {year}: {e}")
+        logger.debug(f"Could not load capacity for {year}: {e}")
         return pd.DataFrame()
 
 
