@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nvo-rankings"
+name = "nvo7-predictor"
 version = "1.0.0"
-description = "ML-based prediction system for Bulgarian 7th grade high school admission rankings"
+description = "ML-based prediction system for Bulgarian 7th grade high school admission cutoff scores"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "Zhivko Georgiev", email = "zhivko.d.georgiev@gmail.com"}]
@@ -33,8 +33,8 @@ dependencies = [
 nvo = "nvo.cli.commands:cli"
 
 [project.urls]
-Homepage = "https://github.com/zhivko-georgiev/nvo-7mi-klas-rankings"
-Repository = "https://github.com/zhivko-georgiev/nvo-7mi-klas-rankings"
+Homepage = "https://github.com/zhivko-georgiev/nvo7-predictor"
+Repository = "https://github.com/zhivko-georgiev/nvo7-predictor"
 
 [tool.setuptools.packages.find]
 where = ["."]

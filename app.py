@@ -71,7 +71,7 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.markdown(
         "Built with ❤️ using XGBoost\n\n"
-        "[GitHub](https://github.com/zhivko-georgiev/nvo-7mi-klas-rankings)"
+        "[GitHub](https://github.com/zhivko-georgiev/nvo7-predictor)"
     )
 
 

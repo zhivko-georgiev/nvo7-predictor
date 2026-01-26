@@ -35,8 +35,8 @@ Validated on 2025 data (trained on 2022-2024):
 ### Installation
 
 ```bash
-git clone https://github.com/zhivko-georgiev/nvo-7mi-klas-rankings.git
-cd nvo-7mi-klas-rankings
+git clone https://github.com/zhivko-georgiev/nvo7-predictor.git
+cd nvo7-predictor
 python3.12 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -e .

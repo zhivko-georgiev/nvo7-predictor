@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="nvo-rankings",
+    name="nvo7-predictor",
     version="1.0.0",
     author="Zhivko Georgiev",
     author_email="zhivko.d.georgiev@gmail.com",
