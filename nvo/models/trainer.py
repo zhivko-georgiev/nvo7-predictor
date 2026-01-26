@@ -71,7 +71,6 @@ def compute_school_stats(df: pd.DataFrame, target_col: str) -> Dict[str, Dict]:
                 'max_change': 0
             }
     return stats
-    return stats
 
 
 def train_model(
@@ -132,13 +131,13 @@ def train_model(
     )
     
     model = xgb.XGBRegressor(
-        n_estimators=50,
-        max_depth=3,
-        learning_rate=0.1,
-        reg_alpha=1.0,
-        reg_lambda=2.0,
-        min_child_weight=5,
-        random_state=42
+        n_estimators=model_params.get('n_estimators', 50),
+        max_depth=model_params.get('max_depth', 3),
+        learning_rate=model_params.get('learning_rate', 0.1),
+        reg_alpha=model_params.get('reg_alpha', 1.0),
+        reg_lambda=model_params.get('reg_lambda', 2.0),
+        min_child_weight=model_params.get('min_child_weight', 5),
+        random_state=model_params.get('random_state', 42)
     )
     
     model.fit(X_train, y_train, sample_weight=w_train, verbose=False)

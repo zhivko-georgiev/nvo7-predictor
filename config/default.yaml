@@ -7,17 +7,13 @@ data:
   output_dir: "output"
 
 model:
-  # Optimized hyperparameters (63% improvement over baseline)
-  n_estimators: 500
-  max_depth: 8
-  learning_rate: 0.03
-  subsample: 0.8
-  colsample_bytree: 0.8
-  reg_alpha: 0.2
-  reg_lambda: 1.5
+  # Shallow trees with strong regularization to prevent overfitting
+  n_estimators: 50
+  max_depth: 3
+  learning_rate: 0.1
+  reg_alpha: 1.0
+  reg_lambda: 2.0
   min_child_weight: 5
-  gamma: 0.2
-  test_size: 0.2
   random_state: 42
 
 filters:
