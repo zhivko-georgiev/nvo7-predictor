@@ -1,8 +1,8 @@
 # NVO Rankings Prediction Configuration
 
 data:
-  historical_years: [2022, 2023, 2024]
-  predict_year: 2025
+  historical_years: [2022, 2023, 2024, 2025]
+  predict_year: 2026
   files_dir: "files"
   output_dir: "output"
 
