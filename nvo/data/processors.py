@@ -3,6 +3,7 @@ import pandas as pd
 from typing import List
 from nvo.data.loaders import load_rankings, load_school_capacity
 from nvo.data.exam_loaders import load_exam_distribution
+from nvo.data.rename_detection import detect_and_apply_renames
 from nvo.utils.logger import get_logger
 
 logger = get_logger("data.processors")
@@ -44,5 +45,9 @@ def build_dataset(historical_years: List[int], files_dir: str = "files") -> pd.D
         return pd.DataFrame()
     
     result = pd.concat(all_data, ignore_index=True)
+    
+    # Detect and apply profile renames sequentially to maintain continuity
+    result = detect_and_apply_renames(result)
+    
     logger.info(f"Built dataset: {len(result)} records, {len(result.columns)} features")
     return result

@@ -84,7 +84,7 @@ def prediction_page():
         train_years = st.multiselect(
             "Training Years",
             options=HISTORICAL_YEARS,
-            default=[2022, 2023, 2024]
+            default=[2022, 2023, 2024, 2025]
         )
     with col2:
         max_train = max(train_years) if train_years else 2024

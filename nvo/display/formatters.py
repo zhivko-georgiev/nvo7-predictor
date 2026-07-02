@@ -31,8 +31,12 @@ def format_validation_metrics(metrics: Dict) -> List[str]:
         lines.append(f"{key}:")
         lines.append(f"  MAE: {m['mae_existing']:.2f} points (existing profiles)")
         lines.append(f"  MAE: {m['mae_reliable']:.2f} points (reliable only)")
-        lines.append(f"  New profiles: {m['new_profiles']}/{m['total']}")
+        lines.append(f"  New profiles: {m.get('new_profiles', 0)}/{m['total']}")
         lines.append(f"  Reliable: {m['reliable']}/{m['total']}")
+        if 'interval_coverage' in m:
+            lines.append(f"  Interval coverage: {m['interval_coverage']:.1%} ({m['interval_inside']}/{m['interval_total']} within ±2.5×volatility)")
+        if 'method' in m:
+            lines.append(f"  Method: {m['method']} (avg diff: {m.get('avg_r2_r1_diff', 'N/A')})")
     return lines
 
 

@@ -26,12 +26,13 @@ Validated on 2025 data (trained on 2022-2024):
 
 | Round | All Profiles | Reliable Only |
 |-------|--------------|---------------|
-| R1 MAE | 19.15 points | **13.42 points** |
-| R1 Within 10 pts | 45.6% | 54.8% |
-| R1 Within 20 pts | 65.8% | 77.4% |
-| R2 MAE | 24.31 points | **18.42 points** |
+| R1 MAE | 18.97 points | **10.60 points** |
+| R1 Within 10 pts | 54.0% | 68.4% |
+| R1 Within 20 pts | 69.3% | 83.9% |
+| R2 MAE | 24.80 points | **14.99 points** |
+| R1 Interval Coverage (±2.5σ) | 77% | ~85% |
 
-**Reliable predictions** = profiles with ≥2 years history, volatility <25, and previous year data.
+**Reliable predictions** = profiles with ≥2 years history, volatility <20, and previous year data.
 
 ## 🚀 Quick Start
 
@@ -104,24 +105,23 @@ Predicting admission cutoffs is hard because:
 
 ### Our Approach
 
-1. **Delta Prediction**: Instead of predicting absolute scores, we predict year-over-year *change*. The previous year's score is the strongest predictor.
+1. **Equipercentile Backbone**: Convert last year's cutoff to a percentile rank in last year's exam distribution, then map that rank through this year's distribution. This handles exam difficulty shifts by construction — no extrapolation needed.
 
-2. **Feature Engineering**:
-   - Historical mean and volatility per school
-   - Trend direction and acceleration
-   - Exam score distribution (percentiles)
-   - Distance from historical mean
+2. **ML Residual Correction**: A delta model (XGBoost) predicts the year-over-year change not explained by the difficulty shift — capturing trend, mean reversion, and capacity effects.
 
-3. **Gender-Specific Blending**: Female predictions benefit from the model (60% model, 40% naive), while male predictions use pure naive baseline (previous year's score).
+3. **Hybrid Blending**: The final prediction blends the equipercentile base with the model residual, using a weight tuned by leave-one-year-out cross-validation (capped at 0.8 to prevent overfitting).
 
-4. **Confidence Intervals**: Based on historical volatility - stable schools get tighter intervals.
+4. **Profile Rename Detection**: Automatically detects renamed profiles across years via string similarity + language-token matching, maintaining continuity in the training data.
+
+5. **Confidence Intervals**: ±2.5× historical volatility, targeting ~87% empirical coverage for reliable predictions.
 
 ### Model Details
 
-- **Algorithm**: XGBoost with shallow trees (max_depth=3)
+- **Algorithm**: XGBoost with shallow trees (max_depth=3) + equipercentile rank mapping
 - **Regularization**: Strong L1/L2 to prevent overfitting
-- **Training data**: ~800 samples (3 years × ~270 schools)
-- **Training time**: <2 seconds
+- **Training**: Walk-forward feature construction (no data leakage), temporal validation
+- **Training data**: ~1000 samples (4 years × ~270 schools)
+- **Training time**: <5 seconds
 
 ## 📖 Understanding Results
 
