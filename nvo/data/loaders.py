@@ -2,7 +2,7 @@
 import pandas as pd
 import glob
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from nvo.data.parsers import parse_bg_float, find_header_row, extract_columns
 from nvo.utils.logger import get_logger
 
@@ -64,8 +64,31 @@ def load_exam_averages(year: int, files_dir: str = "files") -> Dict[str, float]:
         return {f'{s}_{g}': 0 for s in ['BEL', 'MAT'] for g in ['Total', 'Male', 'Female']}
 
 
+def _parse_bel_mat_weights(formula: str) -> Tuple[int, int]:
+    """Parse the балообразуване formula to extract BEL and MAT weights.
+    
+    Examples:
+        "(2 * БЕЛ + 2 * МАТ) + ..." → (2, 2)
+        "(3 * БЕЛ + 1 * МАТ) + ..." → (3, 1)
+        "(1 * БЕЛ + 3 * МАТ) + ..." → (1, 3)
+    
+    Returns (0, 0) if parsing fails.
+    """
+    import re
+    if not formula or not isinstance(formula, str):
+        return (0, 0)
+    
+    bel_match = re.search(r'(\d+)\s*\*\s*БЕЛ', formula)
+    mat_match = re.search(r'(\d+)\s*\*\s*МАТ', formula)
+    
+    w_bel = int(bel_match.group(1)) if bel_match else 0
+    w_mat = int(mat_match.group(1)) if mat_match else 0
+    
+    return (w_bel, w_mat)
+
+
 def load_school_capacity(year: int, files_dir: str = "files") -> pd.DataFrame:
-    """Load school capacity data."""
+    """Load school capacity data and score formula weights."""
     filepath = Path(files_dir) / str(year) / f"schools_{year}.xlsx"
     
     try:
@@ -84,12 +107,18 @@ def load_school_capacity(year: int, files_dir: str = "files") -> pd.DataFrame:
         df = df.iloc[header_row + 2:].reset_index(drop=True)  # Skip header and empty row
         
         capacity_df = pd.DataFrame({
-            'School': df['Училище - име'],
+            'School': df['Училище - име'].apply(lambda x: str(x).split(', ГР.')[0].strip() if pd.notna(x) else x),
             'Profile': df['Паралелка - име'],
             'Capacity_Total': df['Общо основание'].apply(parse_bg_float) if 'Общо основание' in df.columns else 0,
             'Capacity_Male': df['Мъже'].apply(parse_bg_float) if 'Мъже' in df.columns else 0,
             'Capacity_Female': df['Жени'].apply(parse_bg_float) if 'Жени' in df.columns else 0
         })
+        
+        # Parse BEL/MAT weights from балообразуване formula
+        if 'Балообразуване' in df.columns:
+            weights = df['Балообразуване'].apply(_parse_bel_mat_weights)
+            capacity_df['BEL_Weight'] = weights.apply(lambda x: x[0])
+            capacity_df['MAT_Weight'] = weights.apply(lambda x: x[1])
         
         logger.info(f"Loaded capacity data for {year}: {len(capacity_df)} entries")
         return capacity_df

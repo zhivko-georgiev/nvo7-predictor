@@ -134,6 +134,101 @@ def load_full_distribution(year: int, files_dir: str, gender: str = 'Female') ->
         return None
 
 
+def load_subject_distributions(year: int, files_dir: str, gender: str = 'Female') -> Optional[Dict]:
+    """Load separate BEL and MAT score distributions for a given year and gender.
+    
+    Returns dict with keys 'bel' and 'mat', each containing:
+        scores: array of score midpoints (0-100 scale per subject)
+        counts: array of student counts per bin
+        cumulative_pct: cumulative percentile at each score point
+        total_students: total number of students
+    """
+    from pathlib import Path
+    from nvo.data.parsers import parse_bg_float
+    
+    filepath = Path(files_dir) / str(year) / f"average_grades_BEL_MAT-{year}.xlsx"
+    
+    try:
+        df = pd.read_excel(filepath, header=None)
+        header_row = df[df[0].astype(str).str.contains('Точки', na=False)].index[0]
+        data_start = header_row + 3
+        
+        # Per-subject column indices:
+        # BEL: Total=1, Male=3, Female=5
+        # MAT: Total=7, Male=9, Female=11
+        gender_bel_col = {'Total': 1, 'Male': 3, 'Female': 5}
+        gender_mat_col = {'Total': 7, 'Male': 9, 'Female': 11}
+        
+        bel_col = gender_bel_col.get(gender, 5)
+        mat_col = gender_mat_col.get(gender, 11)
+        
+        # Per-subject scores are 0-100 scale
+        max_score = 100.999
+        
+        scores = []
+        bel_counts = []
+        mat_counts = []
+        
+        for i, val in enumerate(df.iloc[data_start:, 0]):
+            if pd.isna(val):
+                continue
+            s = str(val).strip()
+            
+            if '-' in s:
+                parts = s.split('-')
+                low = float(parts[0].strip().replace(',', '.'))
+                high = float(parts[1].strip().replace(',', '.'))
+                if low > max_score:
+                    break
+                score = (low + high) / 2
+            elif s == '100':
+                score = 100.0
+            elif s == '200':
+                # We've gone past per-subject range into combined
+                break
+            else:
+                continue
+            
+            idx = data_start + i
+            bel_count = parse_bg_float(df.iloc[idx, bel_col])
+            mat_count = parse_bg_float(df.iloc[idx, mat_col])
+            
+            scores.append(score)
+            bel_counts.append(bel_count)
+            mat_counts.append(mat_count)
+        
+        if not scores:
+            return None
+        
+        scores = np.array(scores)
+        bel_counts = np.array(bel_counts)
+        mat_counts = np.array(mat_counts)
+        
+        def _make_dist(counts):
+            total = counts.sum()
+            if total == 0:
+                return None
+            cumsum = np.cumsum(counts)
+            return {
+                'scores': scores.copy(),
+                'counts': counts,
+                'cumulative_pct': cumsum / total * 100.0,
+                'total_students': total,
+            }
+        
+        bel_dist = _make_dist(bel_counts)
+        mat_dist = _make_dist(mat_counts)
+        
+        if bel_dist is None or mat_dist is None:
+            return None
+        
+        return {'bel': bel_dist, 'mat': mat_dist}
+    
+    except Exception as e:
+        logger.error(f"Failed to load subject distributions for {year}/{gender}: {e}")
+        return None
+
+
 def cutoff_to_nvo_score(cutoff: float) -> float:
     """Convert a full cutoff score (0-500) to approximate NVO score (0-200).
     
@@ -240,6 +335,55 @@ def equipercentile_predict(
     return float(np.clip(predicted_cutoff, 0, 500))
 
 
+def equipercentile_predict_weighted(
+    prev_cutoff: float,
+    prev_subj_dists: Dict,
+    curr_subj_dists: Dict,
+    w_bel: int = 2,
+    w_mat: int = 2,
+) -> float:
+    """Predict current year cutoff using per-subject equipercentile mapping.
+    
+    Instead of mapping through the combined distribution (which assumes 2+2),
+    this computes the per-subject percentile shift and applies it with the
+    school's actual weighting formula.
+    
+    Formula: cutoff = w_bel * BEL + w_mat * MAT + grades
+    
+    Steps:
+    1. Estimate per-subject scores from prev_cutoff
+    2. Find each subject's percentile rank in prev_year distribution
+    3. Map each percentile to a score in curr_year distribution
+    4. Reconstruct cutoff with the school's weights
+    """
+    grades = estimate_grades_component(prev_cutoff)
+    
+    # Estimate per-subject scores: cutoff = w_bel*BEL + w_mat*MAT + grades
+    # Assume BEL and MAT are roughly equal for initial split (will be corrected by mapping)
+    nvo_total = prev_cutoff - grades  # = w_bel*BEL + w_mat*MAT
+    # Approximate: BEL ≈ MAT ≈ nvo_total / (w_bel + w_mat)
+    avg_subject = nvo_total / (w_bel + w_mat) if (w_bel + w_mat) > 0 else 50
+    bel_prev = float(np.clip(avg_subject, 0, 100))
+    mat_prev = float(np.clip(avg_subject, 0, 100))
+    
+    prev_bel_dist = prev_subj_dists['bel']
+    prev_mat_dist = prev_subj_dists['mat']
+    curr_bel_dist = curr_subj_dists['bel']
+    curr_mat_dist = curr_subj_dists['mat']
+    
+    # Map each subject through its own distribution
+    bel_pct = score_to_percentile(bel_prev, prev_bel_dist)
+    mat_pct = score_to_percentile(mat_prev, prev_mat_dist)
+    
+    bel_curr = percentile_to_score(bel_pct, curr_bel_dist)
+    mat_curr = percentile_to_score(mat_pct, curr_mat_dist)
+    
+    # Reconstruct cutoff with school's weights
+    predicted_cutoff = w_bel * bel_curr + w_mat * mat_curr + grades
+    
+    return float(np.clip(predicted_cutoff, 0, 500))
+
+
 def compute_equipercentile_predictions(
     df_prev_year: pd.DataFrame,
     target_col: str,
@@ -250,6 +394,11 @@ def compute_equipercentile_predictions(
 ) -> Dict[str, float]:
     """Compute equipercentile predictions for all school-profiles.
     
+    Uses per-subject (BEL/MAT) distributions when the school's weighting
+    formula is available in the data (via BEL_Weight/MAT_Weight columns).
+    Falls back to combined distribution for profiles without weight info
+    or where per-subject data isn't available.
+    
     Returns a dict mapping "School|Profile" → predicted cutoff.
     """
     prev_dist = load_full_distribution(prev_year, files_dir, gender)
@@ -259,7 +408,13 @@ def compute_equipercentile_predictions(
         logger.warning(f"Cannot compute equipercentile: missing distribution for {prev_year} or {curr_year}")
         return {}
     
+    # Try to load per-subject distributions
+    prev_subj = load_subject_distributions(prev_year, files_dir, gender)
+    curr_subj = load_subject_distributions(curr_year, files_dir, gender)
+    has_subject_dists = prev_subj is not None and curr_subj is not None
+    
     predictions = {}
+    weighted_count = 0
     
     for _, row in df_prev_year.iterrows():
         key = f"{row['School']}|{row['Profile']}"
@@ -268,14 +423,42 @@ def compute_equipercentile_predictions(
         if prev_cutoff <= 0:
             continue
         
+        # Check if per-subject weighted prediction is possible
+        w_bel = row.get('BEL_Weight', 0)
+        w_mat = row.get('MAT_Weight', 0)
+        
+        # Always use combined distribution as base (most robust)
         pred = equipercentile_predict(prev_cutoff, prev_dist, curr_dist)
+        
+        # Per-subject correction for non-standard weights (3+1 or 1+3).
+        # Only activates when subjects diverge strongly between years (>10 pts).
+        # In mild-divergence years (like 2025→2026, ~±3 pts), the correction
+        # adds noise due to the crude BEL/MAT split estimation.
+        # The threshold should be lowered once we have better per-subject
+        # score estimation (e.g., from per-student data or score-band calibration).
+        if has_subject_dists and w_bel > 0 and w_mat > 0 and (w_bel != 2 or w_mat != 2):
+            pred_weighted = equipercentile_predict_weighted(
+                prev_cutoff, prev_subj, curr_subj,
+                w_bel=int(w_bel), w_mat=int(w_mat)
+            )
+            pred_default_weight = equipercentile_predict_weighted(
+                prev_cutoff, prev_subj, curr_subj,
+                w_bel=2, w_mat=2
+            )
+            divergence_correction = pred_weighted - pred_default_weight
+            # Only apply if subjects diverged strongly (>10 points)
+            if abs(divergence_correction) > 10.0:
+                pred += divergence_correction
+                pred = float(np.clip(pred, 0, 500))
+                weighted_count += 1
+        
         predictions[key] = pred
     
     n_preds = len(predictions)
     if n_preds > 0:
         logger.info(
-            f"Equipercentile predictions ({gender}): {n_preds} profiles, "
-            f"avg shift={np.mean(list(predictions.values())) - df_prev_year[target_col].mean():.1f} points"
+            f"Equipercentile predictions ({gender}): {n_preds} profiles "
+            f"({weighted_count} per-subject weighted, {n_preds - weighted_count} combined)"
         )
     
     return predictions
